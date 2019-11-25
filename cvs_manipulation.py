@@ -9,14 +9,9 @@ Created on Sat Nov  17 02:07:15 2019
     Invalid data will just be desconsidered. 
 
 """
+import sys
 import csv
-import os 
 
-dateList = []
-validData = []
-
-if not os.path.exists('validData'):
-    os.mkdir(validData)
 
 def verifyDate():
     data = csv.DictReader(file) #DictReader allow do get only some specify part of the file, based on the header 
@@ -26,21 +21,25 @@ def verifyDate():
         year = dateList[0]                  #All the years (position 0) goes to "year"
         yearInt = int(year)                 #Convert string to int to allow comparing
         if (yearInt > 2011):
-            #with open('validDate.csv', 'w', newline='') as validFile:
-            recordingFile = open('validDate.csv', 'a') 
+            recordingFile = open(validDate, 'a', newline='') 
             
             fieldnames = ['Type','Year','Spot','Start','Max','End']
-            writer = csv.DictWriter(recordingFile, fieldnames=fieldnames)
-            #print(completeRow)
-            writer.writeheader() #VERIFICAR KEYERROR END 
+            writer = csv.DictWriter(recordingFile, fieldnames)
             writer.writerow({'Type': completeRow['Type'], 'Year': completeRow['Year'], 'Spot': completeRow['Spot'], 'Start': completeRow['Start'], 'Max': completeRow['Max']})
         
             recordingFile.close 
-            
-with open('solarflares.csv') as file:
-   verifyDate()
+    print("Success on the verification!") 
     
+try:
+    solarFlaresInfos = sys.argv[1]
+    validDate = sys.argv[2]
     
+    with open(solarFlaresInfos) as file:
+        verifyDate()
+    
+except IndexError:
+    print("Incorrect parameters")
+    print("Try: >$ python cvs_manipulation.py <file_with_flares_informations> <file_to_record_relevant_flares>")
     
     
     
