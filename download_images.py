@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 """
-Created on Sat Nov  17 00:01:41 2019
-
-@author: analu
+@author: Ana Luís Fogarin de S. Lima
 
     https://www.lmsal.com/sdodocs/doc/dcur/SDOD0060.zip/zip/entry/ 
     https://docs.sunpy.org/projects/drms/en/latest/tutorial.html
