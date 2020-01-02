@@ -69,6 +69,7 @@ def downloadImages():
         for row in row:
             listDate = row['Year']
             listTime = row['Max']
+            #listTime = str(listTime)
             listTime = listTime[:-3]
           
 #            downloadImages = open('downloadImages.csv', 'r')
