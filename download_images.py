@@ -14,70 +14,130 @@ listDate = []
 listTime = []
 
 def downloadImages(): 
-
-    #Create the destiny folders when necessary 
-    continuum = 'continuum'
-    if not os.path.exists(continuum):
-        os.mkdir(continuum)
     
-    aia1600 = 'aia1600'
-    if not os.path.exists(aia1600):
-        os.mkdir(aia1600)
-    
-    aia1700 = 'aia1700'
-    if not os.path.exists(aia1700):
-        os.mkdir(aia1700)
-
-    #Create control file to avoid downloading twice the same image 
-    directory = (os.path.dirname(os.path.realpath(__file__)))   #Get currently directory 
-    createFile = directory + os.sep + 'downloadImages.csv'      #Adress of the file 
-
-    if not os.path.exists(createFile):  #Creates the file if necessary 
-        outputFile = directory + os.sep + 'downloadImages.csv'  
-        
-        with open(outputFile, 'w') as csvfile:  #Write the header of the file, this way prevent replication 
-            
-            fieldnames = ['Type','Year','Spot','Start','Max','End'] #Using fieldnames makes it easier to put each data on the right position 
-            w = csv.DictWriter(csvfile, fieldnames)
-            w.writeheader()
-
+    global continuumImages
+    global aiaSixImages
+    global aiaSevenImages
+    global alreadyExists
 
     with open(validDataFile, 'r') as inputFile:
         row = csv.DictReader(inputFile)
         for row in row:
+            print(alreadyExists)
             listDate = row['Year']
             listTime = row['Max']
             #listTime = str(listTime)
             listTime = listTime[:-3]
+            yearFlare = row['Year']
+            
+            #Relevant informations about current flare, to compare and avoid replication
+            currentFlare = yearFlare + "_" + listTime
+            currentFlare = currentFlare.replace(" ", "")
+            
+            with open(controlFile, 'r') as controlFileR:
+                images = controlFileR.read()
+                images = images.split('|')
                    
-            dc = 'hmi.Ic_45s['+listDate +'_'+listTime+'_TAI/30m@30m]'
-            dc = dc.replace(" ", "") #Removes blank spaces
-            r = c.export(dc, method='url', protocol='fits')  #Using url/fits 
-            r.wait()
-            r.status
-            r.request_url
-            r.download(continuum)
-            
-#            Downloading images on AIA 1600 and 1700 
-            da = 'aia.lev1_uv_24s['+listDate+'_'+listTime+'/30m@30m][1600]'
-            da = da.replace(" ", "") #Removes blank spaces
-            r = c.export(da, method='url', protocol='fits')
-            r.wait()
-            r.status
-            r.request_url
-            r.download(aia1600)
-            
-            daia = 'aia.lev1_uv_24s['+listDate+'_'+listTime+'/30m@30m][1700]'
-            daia = daia.replace(" ", "")    #Removes blank spaces
-            r = c.export(daia, method='url', protocol='fits')
-            r.wait()
-            r.status
-            r.request_url
-            r.download(aia1700)
+                #HMI Continuum  
+                continuumFlare = currentFlare + "C"
+                if continuumFlare in images:
+                    #print("JUMP!")
+                    alreadyExists += 1
+                    
+                elif continuumFlare not in images:
+                    
+                    dc = 'hmi.Ic_45s['+listDate +'_'+listTime+'_TAI/30m@30m]'
+                    dc = dc.replace(" ", "") #Removes blank spaces
+                    r = c.export(dc, method='url', protocol='fits')  #Using url/fits 
+                    r.wait()
+                    r.status
+                    r.request_url
+                    r.download(continuum)
+                    
+                    continuumImages += 1 
+                    
+                    with open(controlFile, 'a+') as controlFileW:
+                        controlFileW.write(continuumFlare)
+                        controlFileW.write('|')
+                    
+                #Downloading images on AIA 1600 and 1700 
+                sixteenHundredFlare = currentFlare + "A16"
+                if sixteenHundredFlare in images:
+                    #print("JUMP!")
+                    alreadyExists += 1
+                    
+                elif sixteenHundredFlare not in images:
+                    da = 'aia.lev1_uv_24s['+listDate+'_'+listTime+'/30m@30m][1600]'
+                    da = da.replace(" ", "") #Removes blank spaces
+                    r = c.export(da, method='url', protocol='fits')
+                    r.wait()
+                    r.status
+                    r.request_url
+                    r.download(aia1600)
+                    
+                    aiaSixImages += 1
+                    
+                    with open(controlFile, 'a+') as controlFileW:
+                        controlFileW.write(sixteenHundredFlare)
+                        controlFileW.write('|')
+                  
+                seventeenHundredFlare = currentFlare + "A17"
+                if seventeenHundredFlare in images:
+                    #print("JUMP!")
+                    alreadyExists += 1
+                    
+                elif seventeenHundredFlare not in images:    
+                    daia = 'aia.lev1_uv_24s['+listDate+'_'+listTime+'/30m@30m][1700]'
+                    daia = daia.replace(" ", "")    #Removes blank spaces
+                    r = c.export(daia, method='url', protocol='fits')
+                    r.wait()
+                    r.status
+                    r.request_url
+                    r.download(aia1700)
+                    
+                    aiaSevenImages += 1
+                    
+                    with open(controlFile, 'a+') as controlFileW:
+                        controlFileW.write(seventeenHundredFlare)
+                        controlFileW.write('|')
+                        
+    totalImages = aiaSevenImages + aiaSixImages + continuumImages
+    print(" Total of images downloaded: " + totalImages)
+    print("HMI Continuum images: " + continuumImages)
+    print("AIA 1600 images: " + aiaSixImages)
+    print("AIA 1700 images: " + aiaSevenImages)
+    print(alreadyExists + "weren't downloaded to avoid duplication.")
         
 try:
     validDataFile = sys.argv[1]
     
+    controlFile = "controlDownloads.txt" 
+    continuum = 'continuum'
+    aia1600 = 'aia1600'
+    aia1700 = 'aia1700'
+
+    continuumImages = 0
+    aiaSixImages = 0
+    aiaSevenImages = 0
+    alreadyExists = 0
+
+    directory = (os.path.dirname(os.path.realpath(__file__)))   #Get currently directory 
+    
+    #Creates controlFile when necessary 
+    createFileControl = directory + os.sep + controlFile 
+    if not os.path.exists(createFileControl):  
+        file = open(controlFile, 'w+')
+    
+    #Creates destiny folders when necessary 
+    if not os.path.exists(continuum):
+        os.mkdir(continuum)
+    
+    if not os.path.exists(aia1600):
+        os.mkdir(aia1600)
+    
+    if not os.path.exists(aia1700):
+        os.mkdir(aia1700)
+
     downloadImages()
     
 except IndexError:
