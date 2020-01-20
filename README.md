@@ -21,8 +21,19 @@ It is **essential** to provide:
 5. Max,
 6. End.  
 
+The download need a registered e-mail on JSOC Export (on [this](http://jsoc.stanford.edu/ajax/register_email.html) page). Make sure to rewrite the e-mail on the code. 
+
 ### Syntax 
 > python csv_manipulation.py <input_flares_infos.csv> <output_flares_infos.csv> 
 
 * __Input Flares Infos:__ This file must contain all informations about the solar flares;
 * __Output Flares Infos:__ Doesn't need to be a file, it can be just the name wanted on the output file.
+
+### Usefull links 
+
+Guide to SDO Data Analysis - Click [here](https://www.lmsal.com/sdodocs/doc/dcur/SDOD0060.zip/zip/entry/)
+
+Tutorial DRMS Package - Click [here](https://docs.sunpy.org/projects/drms/en/latest/tutorial.html)  
+
+Joint Science Operations Center (JSOC) - Click [here](http://jsoc.stanford.edu)
+
