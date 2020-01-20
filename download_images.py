@@ -26,12 +26,14 @@ def downloadImages():
             print(alreadyExists)
             listDate = row['Year']
             listTime = row['Max']
-            #listTime = str(listTime)
+
             listTime = listTime[:-3]
+            
             yearFlare = row['Year']
+            timeFlare = row['Max']
             
             #Relevant informations about current flare, to compare and avoid replication
-            currentFlare = yearFlare + "_" + listTime
+            currentFlare = yearFlare + "_" + timeFlare
             currentFlare = currentFlare.replace(" ", "")
             
             with open(controlFile, 'r') as controlFileR:
