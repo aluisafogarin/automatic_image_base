@@ -8,10 +8,24 @@ import drms
 import os 
 import csv
 
-c = drms.Client(email='automatic.download.ic@gmail.com', verbose=True)   #Creating an instance of drms.Client class 
-
 listDate = []
 listTime = []
+
+#CONFIGURE VARIABLES HERE 
+EMAIL = 'automatic.download.ic@gmail.com' #Insert registered email here 
+
+#Fieldnames are up to the user, but it's essential to provide DATE (yyyy/mm/dd) and TIME (hh:mm:ss)
+fieldnames = ['Type','Year','Spot','Start','Max','End'] #Insert fieldnames from CSV File 
+dateField = 'Year' #Insert fieldname that corresponds to DATE (yyy/mm/dd) 
+yearField = 'Max'  #Insert fieldname that corresponds to TIME (hh:mm:ss)
+
+#DO NOT CHANGE 
+controlFile = 'controlDownloads.txt'  #Control file
+continuum = 'continuum'
+aia1600 = 'aia1600'
+aia1700 = 'aia1700'
+
+c = drms.Client(email=EMAIL, verbose=True)   #Creating an instance of drms.Client class 
 
 def downloadImages(): 
     
@@ -24,31 +38,29 @@ def downloadImages():
         row = csv.DictReader(inputFile)
         for row in row:
             print(alreadyExists)
-            listDate = row['Year']
-            listTime = row['Max']
+            dateFlare = row[dateField]  
+            timeFlare = row[yearField]   
 
-            listTime = listTime[:-3]
-            
-            yearFlare = row['Year']
-            timeFlare = row['Max']
+            listTime = timeFlare[:-3]
             
             #Relevant informations about current flare, to compare and avoid replication
-            currentFlare = yearFlare + "_" + timeFlare
+            currentFlare = dateFlare + "_" + timeFlare
             currentFlare = currentFlare.replace(" ", "")
             
             with open(controlFile, 'r') as controlFileR:
-                images = controlFileR.read()
-                images = images.split('|')
+                data = controlFileR.read()
+                data = str(data)
+                data = data.split('|')
                    
                 #HMI Continuum  
-                continuumFlare = currentFlare + "C"
-                if continuumFlare in images:
+                continuumFlare = currentFlare + "C" #Control flare 
+                if continuumFlare in data:
                     #print("JUMP!")
                     alreadyExists += 1
                     
-                elif continuumFlare not in images:
+                elif continuumFlare not in data:
                     
-                    dc = 'hmi.Ic_45s['+listDate +'_'+listTime+'_TAI/30m@30m]'
+                    dc = 'hmi.Ic_45s['+dateFlare +'_'+listTime+'_TAI/30m@30m]'
                     dc = dc.replace(" ", "") #Removes blank spaces
                     r = c.export(dc, method='url', protocol='fits')  #Using url/fits 
                     r.wait()
@@ -64,12 +76,12 @@ def downloadImages():
                     
                 #Downloading images on AIA 1600 and 1700 
                 sixteenHundredFlare = currentFlare + "A16"
-                if sixteenHundredFlare in images:
+                if sixteenHundredFlare in data:
                     #print("JUMP!")
                     alreadyExists += 1
                     
-                elif sixteenHundredFlare not in images:
-                    da = 'aia.lev1_uv_24s['+listDate+'_'+listTime+'/30m@30m][1600]'
+                elif sixteenHundredFlare not in data:
+                    da = 'aia.lev1_uv_24s['+dateFlare+'_'+listTime+'/30m@30m][1600]'
                     da = da.replace(" ", "") #Removes blank spaces
                     r = c.export(da, method='url', protocol='fits')
                     r.wait()
@@ -84,12 +96,12 @@ def downloadImages():
                         controlFileW.write('|')
                   
                 seventeenHundredFlare = currentFlare + "A17"
-                if seventeenHundredFlare in images:
+                if seventeenHundredFlare in data:
                     #print("JUMP!")
                     alreadyExists += 1
                     
-                elif seventeenHundredFlare not in images:    
-                    daia = 'aia.lev1_uv_24s['+listDate+'_'+listTime+'/30m@30m][1700]'
+                elif seventeenHundredFlare not in data:    
+                    daia = 'aia.lev1_uv_24s['+dateFlare+'_'+listTime+'/30m@30m][1700]'
                     daia = daia.replace(" ", "")    #Removes blank spaces
                     r = c.export(daia, method='url', protocol='fits')
                     r.wait()
@@ -113,11 +125,6 @@ def downloadImages():
 try:
     validDataFile = sys.argv[1]
     
-    controlFile = "controlDownloads.txt" 
-    continuum = 'continuum'
-    aia1600 = 'aia1600'
-    aia1700 = 'aia1700'
-
     continuumImages = 0
     aiaSixImages = 0
     aiaSevenImages = 0
@@ -129,6 +136,7 @@ try:
     createFileControl = directory + os.sep + controlFile 
     if not os.path.exists(createFileControl):  
         file = open(controlFile, 'w+')
+        file.close
     
     #Creates destiny folders when necessary 
     if not os.path.exists(continuum):
