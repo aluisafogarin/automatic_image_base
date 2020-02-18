@@ -20,7 +20,7 @@ dateField = 'Year' #Insert fieldname that corresponds to DATE (yyy/mm/dd)
 yearField = 'Max'  #Insert fieldname that corresponds to TIME (hh:mm:ss)
 
 #DO NOT CHANGE 
-controlFile = 'controlDownloads.txt'  #Control file
+controlFile = 'controlDownloads.bin'  #Control file
 continuum = 'continuum'
 aia1600 = 'aia1600'
 aia1700 = 'aia1700'
@@ -47,8 +47,9 @@ def downloadImages():
             currentFlare = dateFlare + "_" + timeFlare
             currentFlare = currentFlare.replace(" ", "")
             
-            with open(controlFile, 'r') as controlFileR:
+            with open(controlFile, 'rb') as controlFileR:
                 data = controlFileR.read()
+                data = data.decode('utf-8')
                 data = str(data)
                 data = data.split('|')
                    
@@ -70,9 +71,9 @@ def downloadImages():
                     
                     continuumImages += 1 
                     
-                    with open(controlFile, 'a+') as controlFileW:
-                        controlFileW.write(continuumFlare)
-                        controlFileW.write('|')
+                    with open(controlFile, 'ab+') as controlFileW:
+                        controlFileW.write(continuumFlare.encode('utf-8'))
+                        controlFileW.write('|'.encode('utf-8'))
                     
                 #Downloading images on AIA 1600 and 1700 
                 sixteenHundredFlare = currentFlare + "A16"
@@ -91,9 +92,9 @@ def downloadImages():
                     
                     aiaSixImages += 1
                     
-                    with open(controlFile, 'a+') as controlFileW:
-                        controlFileW.write(sixteenHundredFlare)
-                        controlFileW.write('|')
+                    with open(controlFile, 'ab+') as controlFileW:
+                        controlFileW.write(sixteenHundredFlare.encode('utf-8'))
+                        controlFileW.write('|'.encode('utf-8'))
                   
                 seventeenHundredFlare = currentFlare + "A17"
                 if seventeenHundredFlare in data:
@@ -111,16 +112,16 @@ def downloadImages():
                     
                     aiaSevenImages += 1
                     
-                    with open(controlFile, 'a+') as controlFileW:
-                        controlFileW.write(seventeenHundredFlare)
-                        controlFileW.write('|')
+                    with open(controlFile, 'ab+') as controlFileW:
+                        controlFileW.write(seventeenHundredFlare.encode('utf-8'))
+                        controlFileW.write('|'.encode('utf-8'))
                         
     totalImages = aiaSevenImages + aiaSixImages + continuumImages
-    print(" Total of images downloaded: " + totalImages)
-    print("HMI Continuum images: " + continuumImages)
-    print("AIA 1600 images: " + aiaSixImages)
-    print("AIA 1700 images: " + aiaSevenImages)
-    print(alreadyExists + "weren't downloaded to avoid duplication.")
+    print("\n\nTotal of images downloaded: ", totalImages)
+    print("HMI Continuum images: ", continuumImages)
+    print("AIA 1600 images: ", aiaSixImages)
+    print("AIA 1700 images: ", aiaSevenImages)
+    print(alreadyExists, "weren't downloaded because they already exists.")
         
 try:
     validDataFile = sys.argv[1]
@@ -135,7 +136,7 @@ try:
     #Creates controlFile when necessary 
     createFileControl = directory + os.sep + controlFile 
     if not os.path.exists(createFileControl):  
-        file = open(controlFile, 'w+')
+        file = open(controlFile, 'wb+')
         file.close
     
     #Creates destiny folders when necessary 
