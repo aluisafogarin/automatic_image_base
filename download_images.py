@@ -2,17 +2,10 @@
 @author: Ana Luís Fogarin de S. Lima
 
 """
-
 import sys 
 import drms 
 import os 
 import csv
-
-#from tqdm import tqdm
-#from time import sleep
-
-listDate = []
-listTime = []
 
 #CONFIGURE VARIABLES HERE 
 EMAIL = 'automatic.download.ic@gmail.com' #Insert registered email here 
@@ -21,17 +14,21 @@ EMAIL = 'automatic.download.ic@gmail.com' #Insert registered email here
 fieldnames = ['Type','Year','Spot','Start','Max','End'] #Insert fieldnames from CSV File 
 dateField = 'Year' #Insert fieldname that corresponds to DATE (yyy/mm/dd) 
 timeField = 'Max'  #Insert fieldname that corresponds to TIME (hh:mm:ss)
+separation = 's'
 
 #DO NOT CHANGE 
 controlFile = 'controlDownloads.bin'  #Control file
 continuum = 'continuum'
 aia1600 = 'aia1600'
 aia1700 = 'aia1700'
-
+listDate = []
+listTime = []
 c = drms.Client(email=EMAIL, verbose=True)   #Creating an instance of drms.Client class 
 
+#This function is responsible to make sure that the file with valid data exists and has the right header
 def verifyOutputFile(): 
     global validDataFile 
+    global flareFile
     
     directory = (os.path.dirname(os.path.realpath(__file__)))  #Get currently directory 
     createFile = directory + os.sep + validDataFile   #Adress of the file 
@@ -40,20 +37,17 @@ def verifyOutputFile():
         outputFile = directory + os.sep + validDataFile
         
         with open(outputFile, 'w') as csvfile:  #Write the header of the file, this way prevent replication 
-            
-            #fieldnames = ['Type','Year','Spot','Start','Max','End'] #Using fieldnames makes it easier to put each data on the right position 
             w = csv.DictWriter(csvfile, fieldnames)       #Path to write on the file
             w.writeheader()
         
         print("Output file (" + validDataFile + ") created!")
 
+#This function is responsible to record only the data older than 2011 on the validDataFile that will be used to download images 
 def verifyDate():
     global newLines 
     global oldLines
     global validDataFile
     global invalidLines
-
-    #fieldnames = ['Type','Year','Spot','Start','Max','End'] #Insert fieldnames from CSV File  
     
     controlE = 0 
     controlN = 0
@@ -64,7 +58,8 @@ def verifyDate():
         for row in rowReader:
             completeRow = row #Receives the row
             dateList = row[dateField].split("-")  #Separate the column "Year" using "-" as the separation point
-            year = dateList[0]                  #All the years (position 0) goes to "year"
+            year = dateList[0]                    #All the years (position 0) goes to "year"
+#            print(row)
     
             if (int(year) > 2011):                      
                 #Before recording, it should verify if the row is already on the validDataFile 
@@ -76,8 +71,6 @@ def verifyDate():
                         oldLines += 1
                         
                     elif completeRow != existingRow:
-#                        print("Nova linha\n",reader)
-#                        print("Linha antiga\n",completeRow)
                         controlN = 1 
                 readFile.close
  
@@ -85,14 +78,13 @@ def verifyDate():
                 #ControlE = 0 and ControlN = 1: current line wasn't recorded
                 #ControlE = 0 and ControlN = 0: current line is the first 
                 if (controlE == 0 and controlN == 1) or (controlE == 0 and controlN == 0): 
-                    outputFile = open(validDataFile, 'a', newline='')     
                     
-                    #fieldnames = ['Type','Year','Spot','Start','Max', 'End'] #Using fieldnames makes it easier to put each data on the right position 
+                    outputFile = open(validDataFile, 'a', newline='')     
                     write = csv.DictWriter(outputFile, fieldnames)       #Path to write on the file
                     write.writerow({'Type': row['Type'], 'Year': row['Year'], 'Spot': row['Spot'], 'Start': row['Start'], 'Max': row['Max'], 'End': row['End']})
                     newLines += 1 
-                                
-                    outputFile.close         
+                    outputFile.close    
+                    
             else:
                 invalidLines += 1
                    
@@ -101,6 +93,7 @@ def verifyDate():
     print(oldLines, " lines already exists on the file, and weren't duplicated")
     print(invalidLines, " lines were invalid and weren't add to the file")
 
+#This function is responsible to download the images based on the validDataFile
 def downloadImages(): 
     
     global validDataFile
@@ -113,8 +106,6 @@ def downloadImages():
 #    print("\n\n-----------------------------------------------------")
     print("Starting downloading process")
     
-#    for i in tqdm(range(1000)):
-#        sleep(0.01)
     
     with open(validDataFile, 'r') as inputFile:
         row = csv.DictReader(inputFile)
@@ -136,23 +127,27 @@ def downloadImages():
                 data = str(data)
                 data = data.split('|')
                    
-                #HMI Continuum  
+                #Downloading images on HMI Continuum  
                 continuumFlare = currentFlare + "C" #Control flare continuum
                 if continuumFlare in data: #Verify if the continuum flare has already been downloaded
                     #print("JUMP!")
                     existingImages += 1
-                    
-                elif continuumFlare not in data:   
-                    dc = 'hmi.Ic_45s['+dateFlare +'_'+listTime+'_TAI/30m@30m]'
-                    dc = dc.replace(" ", "") #Removes blank spaces
-                    r = c.export(dc, method='url', protocol='fits')  #Using url/fits 
-                    r.wait()
-                    r.status
-                    r.request_url
-                    r.download(continuum)
-                    
-                    continuumImages += 1 
-                    
+                
+                elif continuumFlare not in data:  
+                    try:
+                        dc = 'hmi.Ic_45s['+dateFlare +'_'+listTime+'_TAI/30m@30m]'
+                        dc = dc.replace(" ", "") #Removes blank spaces
+                        r = c.export(dc, method='url', protocol='fits')  #Using url/fits 
+                        r.wait()
+                        r.status
+                        r.request_url
+                        r.download(continuum)
+                            
+                        continuumImages += 1 
+                        
+                    except drms.DrmsExportError:
+                        print("Current image doesn't have records online. It can't be downloaded.")
+                        
                     with open(controlFile, 'ab+') as controlFileW:
                         controlFileW.write(continuumFlare.encode('utf-8'))
                         controlFileW.write('|'.encode('utf-8'))
@@ -209,8 +204,8 @@ def downloadImages():
         
 try:
     
-    flareFile = sys.argv[1]
-    validDataFile = flareFile[:-3] + 'correct.csv'
+    flareFile = sys.argv[1]    
+    validDataFile = flareFile[:-3] + 'valid.csv'
     #print(validDataFile)
     
     continuumImages = 0
@@ -221,6 +216,7 @@ try:
     invalidLines = 0
     newLines = 0
     oldLines = 0
+    
     
     if (newLines == 0): #Verify if the output file already exists. If it don't, than create it. 
         verifyOutputFile()
@@ -235,7 +231,7 @@ try:
         file = open(controlFile, 'wb+')
         file.close
     
-    #Creates destiny folders when necessary 
+    #Creates destiny folders for the files
     if not os.path.exists(continuum):
         os.mkdir(continuum)
     
@@ -249,7 +245,9 @@ try:
     
 except IndexError:
     print("Incorrect parameters")
-    print("Try: >$ python download_images.py <file_with_correct_flares.csv>")
+    print("Try: >$ python download_images.py <flare_infos.csv>")
+    
+    
 
 
 
