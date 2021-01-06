@@ -6,6 +6,13 @@ import sys
 import drms 
 import os 
 import csv
+import urllib
+import time
+import shutil
+from tqdm import tqdm
+from time import sleep
+import glob
+
 
 from astropy.io import fits
 from PIL import Image
@@ -30,6 +37,10 @@ separation = 's'
 listDate = []
 listTime = []
 c = drms.Client(email=EMAIL, verbose=True)   # Creates an instance of drms.Client class 
+
+fitsFiles = 0
+pngFiles = 0
+fitsConverted = 0
 
 # This function is responsible to make sure that the file with valid data exists and has the right header
 def verifyOutputFile(): 
@@ -125,60 +136,60 @@ def downloadImages():
                 data = data.split('|')
                    
                 # Downloading images on HMI Continuum -------------------------------------------- 
-                # continuumFlare = currentFlare + "C" # Control flare continuum
-                # if continuumFlare in data: # Verify if the image has already been downloaded
-                #     existingImages += 1
+                continuumFlare = currentFlare + "C" # Control flare continuum
+                if continuumFlare in data: # Verify if the image has already been downloaded
+                    existingImages += 1
                 
-                # elif continuumFlare not in data:  
-                #     try:
-                #         print("------ CONTINUUM IMAGE DOWNLOAD --------")
-                #         dc = 'hmi.Ic_45s['+dateFlare +'_'+listTime+'_TAI/30m@30m]'
-                #         dc = dc.replace(" ", "") # Removes blank spaces
-                #         r = c.export(dc, method='url', protocol='fits')  # Using url/fits 
-                #         r.wait()
-                #         r.status
-                #         r.request_url
-                #         if 'X' in row[typeField]: 
-                #             r.download(continuum + '/x')
-                #             # print('Achei o tipo X')
+                elif continuumFlare not in data:  
+                    try:
+                        print("------ CONTINUUM IMAGE DOWNLOAD --------")
+                        dc = 'hmi.Ic_45s['+dateFlare +'_'+listTime+'_TAI/30m@30m]'
+                        dc = dc.replace(" ", "") # Removes blank spaces
+                        r = c.export(dc, method='url', protocol='fits')  # Using url/fits 
+                        r.wait()
+                        r.status
+                        r.request_url
+                        if 'X' in row[typeField]: 
+                            r.download(continuum + '/x')
                         
-                #         elif 'M' in row[typeField]:
-                #             r.download(continuum + '/m')
-                #             # print('Achei o tipo M')
+                        elif 'M' in row[typeField]:
+                            r.download(continuum + '/m')
                         
-                #         elif 'C' in row[typeField]:
-                #             r.download(continuum + '/c')
-                #             # print('Achei o tipo C')
+                        elif 'C' in row[typeField]:
+                            r.download(continuum + '/c')
                             
-                #         elif 'B' in row[typeField]:
-                #             r.download(continuum + '/b')
-                #             # print('Achei o tipo B')
+                        elif 'B' in row[typeField]:
+                            r.download(continuum + '/b')
                             
-                #         continuumImages += 1 
+                        continuumImages += 1 
                         
-                #     except drms.DrmsExportError:
-                #         print("Current image doesn't have records online. It can't be downloaded.")
-                #         with open('notFound.csv', 'r') as notFoundFile:
-                #             reader = csv.reader(notFoundFile)
-                #             for rowFile in reader:
-                #                 if row not in rowFile:
-                #                     notFound = open('notFound.csv', 'a', newline='')     
-                #                     write = csv.DictWriter(notFound, fieldnames) # Path to write on the file
-                #                     write.writerow({'Type': row['Type'], 'Year': row['Year'], 'Spot': row['Spot'], 'Start': row['Start'], 'Max': row['Max'], 'End': row['End']})
-                #                     notFound.close    
-                #         # Records on notFound.csv the infos of flare that couldn't be downloaded
-                #         # with open('notFound.csv', 'r') as notFoundFile:
-                #         #     row = csv.DictReader(notFoundFile)
-                #         #     if 
+                    except drms.DrmsExportError:
+                        print("Current image doesn't have records online. It can't be downloaded.")
+                        with open('notFound.bin', 'rb+') as notFoundFile:
+                            notFoundData = notFoundFile.read()
+                            notFoundData = notFoundData.decode('utf-8')
+                            notFoundData = str(notFoundData)
+                            
+                        newRow = row[typeField] + "," + row['Year'] + "," + row['Spot'] + "," + row['Start'] + "," + row[timeField] + "," + row['End']
+                        if newRow not in notFoundData:
+                            with open('notFound.bin', 'ab+') as notFoundFile:                            
+                                notFoundFile.write(newRow.encode('utf-8'))
+                                notFoundFile.write('|'.encode('utf-8'))
                     
-                #         # notFound = open('notFound.csv', 'a', newline='')     
-                #         # write = csv.DictWriter(notFound, fieldnames) # Path to write on the file
-                #         # write.writerow({'Type': row['Type'], 'Year': row['Year'], 'Spot': row['Spot'], 'Start': row['Start'], 'Max': row['Max'], 'End': row['End']})
-                #         # notFound.close    
+                    except urllib.error.HTTPError:
+                        print("The website appers to be offline.")
+                        if controlWebSite < 5:
+                            print("Trying to reconnet. Attempt ", controlWebSite, " of 5.")
+                            time.sleep(60)
+                            downloadImages()
                         
-                    # with open(controlFile, 'ab+') as controlFileW:
-                    #     controlFileW.write(continuumFlare.encode('utf-8'))
-                    #     controlFileW.write('|'.encode('utf-8'))
+                        else:
+                            print("The website is offline. Try to run the script again in a few minutes.")
+
+                        
+                    with open(controlFile, 'ab+') as controlFileW:
+                        controlFileW.write(continuumFlare.encode('utf-8'))
+                        controlFileW.write('|'.encode('utf-8'))
                     
                 # Downloading images on AIA 1600 -------------------------------------------- 
                 sixteenHundredFlare = currentFlare + "A16"
@@ -194,22 +205,18 @@ def downloadImages():
                         r.wait()
                         r.status
                         r.request_url
-                        # r.download(aia1600)
+
                         if 'X' in row[typeField]: 
                             r.download(aia1600 + '/x')
-                            # print('Achei o tipo X')
                             
                         elif 'M' in row[typeField]:
                             r.download(aia1600 + '/m')
-                            # print('Achei o tipo M')
                         
                         elif 'C' in row[typeField]:
                             r.download(aia1600 + '/c')
-                            # print('Achei o tipo C')
                             
                         elif 'B' in row[typeField]:
                             r.download(aia1600 + '/b')
-                            # print('Achei o tipo B')
                         
                         aiaSixImages += 1
                         
@@ -219,63 +226,99 @@ def downloadImages():
                             
                     except drms.DrmsExportError:
                          print("Current image doesn't have records online. It can't be downloaded.")
-                         with open('notFound.csv', 'r') as notFoundFile:
-                            reader = csv.reader(notFoundFile)
-                            for rowFile in reader:
-                                if row not in rowFile:
-                                    notFound = open('notFound.csv', 'a', newline='')     
-                                    write = csv.DictWriter(notFound, fieldnames) # Path to write on the file
-                                    write.writerow({'Type': row['Type'], 'Year': row['Year'], 'Spot': row['Spot'], 'Start': row['Start'], 'Max': row['Max'], 'End': row['End']})
-                                    notFound.close  
+                         with open('notFound.bin', 'rb+') as notFoundFile:                     
+                            notFoundData = notFoundFile.read()
+                            notFoundData = notFoundData.decode('utf-8')
+                            notFoundData = str(notFoundData)
+                            
+                         newRow = row[typeField] + "," + row['Year'] + "," + row['Spot'] + "," + row['Start'] + "," + row[timeField] + "," + row['End']
+                         if newRow not in notFoundData:
+                            with open('notFound.bin', 'ab+') as notFoundFile:                            
+                                notFoundFile.write(newRow.encode('utf-8'))
+                                notFoundFile.write('|'.encode('utf-8'))
+                            # notFoundRow = csv.DictReader(notFoundFile)
+                            # for notFoundRow in notFoundRow:
+                            #     if row not in notFoundRow:
+                            #         notFound = open('notFound.csv', 'a', newline='')     
+                            #         write = csv.DictWriter(notFound, fieldnames) # Path to write on the file
+                            #         write.writerow({'Type': row['Type'], 'Year': row['Year'], 'Spot': row['Spot'], 'Start': row['Start'], 'Max': row['Max'], 'End': row['End']})
+                            #         notFound.close 
+                            
+                    except urllib.error.HTTPError:
+                        print("The website appers to be offline.")
+                        if controlWebSite < 5:
+                            print("Trying to reconnet. Attempt ", controlWebSite, " of 5.")
+                            time.sleep(60)
+                            downloadImages()
                         
-                # # Downloading images on AIA 1700 -------------------------------------------- 
-                # seventeenHundredFlare = currentFlare + "A17"
-                # if seventeenHundredFlare in data:
-                #     #print("JUMP!")
-                #     existingImages += 1
+                        else:
+                            print("The website is offline. Try to run the script again in a few minutes.")
+                            
+                # Downloading images on AIA 1700 -------------------------------------------- 
+                seventeenHundredFlare = currentFlare + "A17"
+                if seventeenHundredFlare in data:
+                    existingImages += 1
                     
-                # elif seventeenHundredFlare not in data:  
-                #     try:
-                #         print("------ AIA1700 IMAGE DOWNLOAD --------")
-                #         daia = 'aia.lev1_uv_24s['+dateFlare+'_'+listTime+'/30m@30m][1700]'
-                #         daia = daia.replace(" ", "")    #Removes blank spaces
-                #         r = c.export(daia, method='url', protocol='fits')
-                #         r.wait()
-                #         r.status
-                #         r.request_url
-                #         # r.download(aia1700)
-                #         if 'X' in row[typeField]: 
-                #             r.download(aia1700 + '/x')
-                #             # print('Achei o tipo X')
-                            
-                #         elif 'M' in row[typeField]:
-                #             r.download(aia1700 + '/m')
-                #             # print('Achei o tipo M')
+                elif seventeenHundredFlare not in data:  
+                    try:
+                        print("------ AIA1700 IMAGE DOWNLOAD --------")
+                        daia = 'aia.lev1_uv_24s['+dateFlare+'_'+listTime+'/30m@30m][1700]'
+                        daia = daia.replace(" ", "")    #Removes blank spaces
+                        r = c.export(daia, method='url', protocol='fits')
                         
-                #         elif 'C' in row[typeField]:
-                #             r.download(aia1700 + '/c')
-                #             # print('Achei o tipo C')
+                        r.wait()
+                        r.status
+                        r.request_url
+        
+                        if 'X' in row[typeField]: 
+                            r.download(aia1700 + '/x')
                             
-                #         elif 'B' in row[typeField]:
-                #             r.download(aia1700 + '/b')
-                #             # print('Achei o tipo B')
+                        elif 'M' in row[typeField]:
+                            r.download(aia1700 + '/m')
                         
-                #         aiaSevenImages += 1
-                        
-                #         with open(controlFile, 'ab+') as controlFileW:
-                #             controlFileW.write(seventeenHundredFlare.encode('utf-8'))
-                #             controlFileW.write('|'.encode('utf-8'))
+                        elif 'C' in row[typeField]:
+                            r.download(aia1700 + '/c')
                             
-                #     except drms.DrmsExportError:
-                #           print("Current image doesn't have records online. It can't be downloaded.")
-                #           with open('notFound.csv', 'r') as notFoundFile:
-                #             reader = csv.reader(notFoundFile)
-                #             for rowFile in reader:
-                #                 if row not in rowFile:
-                #                     notFound = open('notFound.csv', 'a', newline='')     
-                #                     write = csv.DictWriter(notFound, fieldnames) # Path to write on the file
-                #                     write.writerow({'Type': row['Type'], 'Year': row['Year'], 'Spot': row['Spot'], 'Start': row['Start'], 'Max': row['Max'], 'End': row['End']})
-                #                     notFound.close  
+                        elif 'B' in row[typeField]:
+                            r.download(aia1700 + '/b')
+                        
+                        aiaSevenImages += 1
+                        
+                        with open(controlFile, 'ab+') as controlFileW:
+                            controlFileW.write(seventeenHundredFlare.encode('utf-8'))
+                            controlFileW.write('|'.encode('utf-8'))
+                            
+                    except drms.DrmsExportError:
+                          print("Current image doesn't have records online. It can't be downloaded.")
+                          with open('notFound.bin', 'rb+') as notFoundFile:                     
+                            notFoundData = notFoundFile.read()
+                            notFoundData = notFoundData.decode('utf-8')
+                            notFoundData = str(notFoundData)
+                            
+                          newRow = row[typeField] + "," + row['Year'] + "," + row['Spot'] + "," + row['Start'] + "," + row[timeField] + "," + row['End']
+                          if newRow not in notFoundData:
+                              with open('notFound.bin', 'ab+') as notFoundFile:                            
+                                  notFoundFile.write(newRow.encode('utf-8'))
+                                  notFoundFile.write('|'.encode('utf-8'))
+                                  
+                    except urllib.error.HTTPError:
+                        print("The website appers to be offline.")
+                        if controlWebSite < 5:
+                            print("Trying to reconnet. Attempt ", controlWebSite, " of 5.")
+                            time.sleep(60)
+                            downloadImages()
+                        
+                        else:
+                            print("The website is offline. Try to run the script again in a few minutes.")
+                            
+                          # with open('notFound.csv', 'r') as notFoundFile:
+                          #   notFoundRow = csv.DictReader(notFoundFile)
+                          #   for notFoundRow in notFoundRow:
+                          #       if row not in notFoundRow:
+                          #           notFound = open('notFound.csv', 'a', newline='')     
+                          #           write = csv.DictWriter(notFound, fieldnames) # Path to write on the file
+                          #           write.writerow({'Type': row['Type'], 'Year': row['Year'], 'Spot': row['Spot'], 'Start': row['Start'], 'Max': row['Max'], 'End': row['End']})
+                          #           notFound.close   
                         
     totalImages = aiaSevenImages + aiaSixImages + continuumImages
     print("Download complete!")
@@ -285,16 +328,190 @@ def downloadImages():
     print("AIA 1600 images: ", aiaSixImages)
     print("AIA 1700 images: ", aiaSevenImages)
     print(existingImages, "weren't downloaded to avoid duplication.")
+    
+def convertImages():
+    print("------- Converting FITS to PNG ------- ")
+    path = directory + os.sep + continuum + os.sep + 'x/' 
+    controlWave = 1 # 1 - continuum, 2 - aia1600, 3 - aia1700
+    controlType = 'x'
+    global fitsFiles
+    global pngFiles
+    global fitsConverted
+    control = 0
         
+    while controlWave != 4:
+        if controlWave == 1:
+            files = listdir(path)
+            wave = continuum
+            vmin, vmax = float(40000), float(80000)
+            controlType == 'x'
+            fitsConverted = 0
+            fitsFiles = 0
+            pngFiles = 0
+            print("Converting ", wave, " images.")
+            
+        if controlWave == 2:
+            wave = aia1600
+            files = listdir(path)
+            vmin, vmax = float(0), float(1113)
+            controlType == 'x'
+            fitsConverted = 0
+            fitsFiles = 0
+            pngFiles = 0
+            print("Converting ", wave, " images.")
+            
+        if controlWave == 3:
+            wave = aia1700
+            files = listdir(path)
+            vmin, vmax = float(0), float(1113)
+            controlType == 'x'
+            fitsConverted = 0
+            fitsFiles = 0
+            pngFiles = 0
+            print("Converting ", wave, " images.")
+            
+        if controlType == 'x':
+            path = directory + os.sep + wave + os.sep + controlType
+            
+        if controlType == 'm':
+            path = directory + os.sep + wave + os.sep + controlType
+    
+        if controlType == 'c':
+            path = directory + os.sep + wave + os.sep + controlType
+            
+        if controlType == 'b':
+            path = directory + os.sep + wave + os.sep + controlType
+        
+        # files = listdir(path)
+        newPath = path + os.sep + "*.fits"
+        # print("NEW", newPath)
+        # print(glob.glob(newPath))
+        for file in glob.glob(newPath):
+            # if "fits" in file: 
+            fitsFiles += 1
+                
+        
+        if fitsFiles != 0:
+            print("Fits to convert:" ,fitsFiles)
+            print("Converting images " + wave + " type ", controlType, "to PNG.")
+            print("This can take some time. Please, wait.")
+            
+            # convertToPNG(path, wave, controlType, vmax, vmin, True)
+            newPath = path + os.sep + "*.fits"
+            for file in glob.glob(newPath):
+                # if controlValue == False:
+                #     for i in [i for i, x in enumerate(files) if x == 1]:
+                #         if i == fitsConverted:
+                #             imagePath = directory + os.sep + wave + os.sep + controlType + os.sep + file
+                #     # if "fits" in file.index(fitsConverted):
+                #     #     imagePath = directory + os.sep + wave + os.sep + controlType + os.sep + file 
+                # else: 
+                # if "fits" in file:
+                # imagePath = directory + os.sep + wave + os.sep + controlType + os.sep + file 
+                hdulist = fits.open(file, ignore_missing_end=True)
+                hdulist.verify('fix')
+                imagem = hdulist[1].data
+                np.warnings.filterwarnings('ignore')
+            
+                # Clip data to brightness limits
+                imagem[imagem > vmax] = vmax
+                imagem[imagem < vmin] = vmin
+                # Scale data to range [0, 1] 
+                imagem = (imagem - vmin)/(vmax - vmin)
+                # Convert to 8-bit integer  
+                imagem = (255*imagem).astype(np.uint8)
+                # Invert y axis
+                imagem = imagem[::-1, :]
+                
+                # Create image from data array and save as png
+                image = Image.fromarray(imagem)
+                destino = file[:-5] + '.png'
+                image.save(destino)
+                fitsConverted += 1
+                control += 1
+                print(fitsConverted,"/",fitsFiles)
+                
+            # Move image to png folders
+            
+            newPath = path + os.sep + "*.png"
+            for file in glob.glob(newPath):
+                file = file.replace(path, "")
+                file = file.replace(os.sep, "")
+                imagePath = directory + os.sep + wave + os.sep + controlType + os.sep + file
+
+                pngFolder = directory + os.sep + wave + os.sep + 'png' + os.sep + controlType + os.sep + file
+                shutil.move(imagePath, pngFolder)
+                pngFiles += 1
+                control += 1
+        
+        if fitsConverted + pngFiles == control:
+            
+            if controlType == 'x':     
+                controlType = 'm'
+                fitsConverted = 0
+                fitsFiles = 0
+                pngFiles = 0
+                control = 0
+                
+            elif controlType == 'm':
+                controlType = 'c'
+                fitsConverted = 0
+                fitsFiles = 0
+                pngFiles = 0
+                control = 0
+            
+            elif controlType == 'c':
+                controlType = 'b'
+                fitsConverted = 0
+                fitsFiles = 0
+                pngFiles = 0
+                control = 0
+                
+            elif controlType == 'b':
+                controlType = 'x'
+                controlWave += 1
+                fitsConverted = 0
+                fitsFiles = 0
+                pngFiles = 0
+                control = 0
+        
+        elif fitsFiles == 0:
+            if controlType == 'b':
+                controlType = 'x'
+                controlWave += 1
+                fitsConverted = 0
+                fitsFiles = 0
+                pngFiles = 0
+                control = 0
+                        
+            elif controlType == 'x':
+                controlType = 'm'
+                fitsConverted = 0
+                fitsFiles = 0
+                pngFiles = 0
+                control = 0
+                
+            elif controlType == 'm':
+                controlType = 'c'
+                fitsConverted = 0
+                fitsFiles = 0
+                pngFiles = 0
+                control = 0
+                
+            elif controlType == 'c':
+                controlType = 'b'
+                fitsConverted = 0
+                fitsFiles = 0
+                pngFiles = 0
+                control = 0
+
+  
 try:
     
     flareFile = sys.argv[1] 
-    # flareFile = 'completesolarflares.csv'
-    # validDataFile = 'completesolarflaresValid.csv'
     validDataFile = flareFile[:-4] + 'valid.csv'
     operation = sys.argv[2]
     print(operation)
-    #print(validDataFile)
     
     directory = (os.path.dirname(os.path.realpath(__file__)))   #Get currently directory 
     
@@ -312,6 +529,7 @@ try:
         invalidLines = 0
         newLines = 0
         oldLines = 0
+        controlWebSite = 0
         
         
         if (newLines == 0): #Verify if the output file already exists. If it don't, than create it. 
@@ -326,6 +544,11 @@ try:
             with open(notFoundFlares, 'w') as csvNotFound:
                 w = csv.DictWriter(csvNotFound, fieldnames)
                 w.writeheader()
+                
+        notFoundFlaresBin = directory + os.sep + 'notFound.bin'
+        if not os.path.exists(notFoundFlaresBin):
+           file = open(notFoundFlaresBin, 'wb+')
+           file.close
     
         # Creates controlFile (controlDownloads.bin) when necessary 
         createFileControl = directory + os.sep + controlFile 
@@ -337,165 +560,42 @@ try:
         if not os.path.exists(continuum):
             os.mkdir(continuum)
             os.mkdir('continuum/x')
+            os.mkdir('continuum/png/x')
             os.mkdir('continuum/m')
+            os.mkdir('continuum/png/m')
             os.mkdir('continuum/c')
+            os.mkdir('continuum/png/c')
             os.mkdir('continuum/b')
+            os.mkdir('continuum/png/b')
         
         if not os.path.exists(aia1600):
             os.mkdir(aia1600)
             os.mkdir('aia1600/x')
+            os.mkdir('aia1600/png/x')
             os.mkdir('aia1600/m')
+            os.mkdir('aia1600/png/m')
             os.mkdir('aia1600/c')
+            os.mkdir('aia1600/png/c')
             os.mkdir('aia1600/b')
+            os.mkdir('aia1600/png/b')
         
         if not os.path.exists(aia1700):
             os.mkdir(aia1700)
             os.mkdir('aia1700/x')
+            os.mkdir('aia1700/png/x')
             os.mkdir('aia1700/m')
+            os.mkdir('aia1700/png/m')
             os.mkdir('aia1700/c')
+            os.mkdir('aia1700/png/c')
             os.mkdir('aia1700/b')
+            os.mkdir('aia1700/png/b')
     
         # After all the process done correctly, everything is read to start the download
         downloadImages()
     
     if operation == '2':
-        print("CONVERTER PNG")
-        #fits_image_filename = fits.util.get_testdata_filepath()
-        # print (os.listdir)
+        convertImages()
         
-        # Converting CONTINUUM images
-        # print(directory)
-        # print(glob.glob('/continuum/x/*.txt'))
-
-        # Converting CONTINUUM images
-        path = directory + os.sep + continuum + os.sep + 'x/' 
-    
-        controlWave = 1
-        # 1 = continuum
-        # 2 = aia1600
-        # 3 = aia1700
-        
-        controlType = 'x'
-        
-        
-        while controlWave != 4:
-            # print("Entrei no while")
-            if controlWave == 1:
-                # print("Estou no if controlWave 1")
-                files = listdir(path)
-                wave = continuum
-                vmin, vmax = float(40000), float(100000)
-                controlType == 'x'
-                i = 0
-            
-            if controlWave == 2:
-                print("Estou no if controlWave 2")
-                wave = aia1600
-                files = listdir(path)
-                comp = aia1600
-                vmin, vmax = float(0), float(1113)
-                controlType == 'x'
-                i = 0
-                
-            if controlWave == 3:
-                print("Estou no if controlWave 3")
-                wave = aia1700
-                files = listdir(path)
-                comp = aia1700
-                vmin, vmax = float(0), float(1113)
-                controlType == 'x'
-                i = 0
-            
-            if controlType == 'x':
-                path = directory + os.sep + wave + os.sep + controlType
-                    
-            if controlType == 'm':
-                path = directory + os.sep + wave + os.sep + controlType
-        
-            if controlType == 'c':
-                path = directory + os.sep + wave + os.sep + controlType
-                
-            if controlType == 'b':
-                path = directory + os.sep + wave + os.sep + controlType
-            
-            # print(path)
-            files = listdir(path)
-            # print(files)
-            # print("Estou antes do for")
-            print(len(files))
-            print('Valor de i', i)
-            print('Controltype ', controlType)
-            
-            if len(files) != 0:
-                for file in files:  
-                    print("ENTREI NO FOR")
-                    imagePath = directory + os.sep + wave + os.sep + controlType + os.sep + file
-                    hdulist = fits.open(imagePath)
-                    hdulist.verify('fix')
-                    imagem = hdulist[1].data
-                    print(imagePath)
-                    np.warnings.filterwarnings('ignore')
-            
-                    # Clip data to brightness limits
-                    imagem[imagem > vmax] = vmax
-                    imagem[imagem < vmin] = vmin
-                    # Scale data to range [0, 1] 
-                    imagem = (imagem - vmin)/(vmax - vmin)
-                    # Convert to 8-bit integer  
-                    imagem = (255*imagem).astype(np.uint8)
-                    # Invert y axis
-                    imagem = imagem[::-1, :]
-                    
-                    # Create image from data array and save as png
-                    image = Image.fromarray(imagem)
-                    destino = imagePath[:-5] + '.png'
-                    # destino = path + os.sep + 'png'
-                    print(destino)
-                    image.save(destino)
-                    # print(destino)
-                   
-                    print('Control wave value:', controlWave)
-                    print('Control type value:', controlType)
-                    
-                    i += 1
-                    # print(i)
-                    
-                    if i == len(files):
-                        if controlType == 'b':
-                            controlType = 'x'
-                            controlWave += 1
-                            i = 0
-                            
-                        elif controlType == 'x':
-                            controlType = 'm'
-                            i = 0
-                        
-                        elif controlType == 'm':
-                            controlType = 'c'
-                            i = 0
-                            
-                        elif controlType == 'c':
-                            controlType = 'b'
-                            i = 0
-                            
-            elif len(files) == 0:
-                if controlType == 'b':
-                    controlType = 'x'
-                    controlWave += 1
-                    i = 0
-                        
-                elif controlType == 'x':
-                    print("ENTREI NO IF")
-                    controlType = 'm'
-                    i = 0
-                
-                elif controlType == 'm':
-                    controlType = 'c'
-                    i = 0
-                    
-                elif controlType == 'c':
-                    controlType = 'b'
-                    i = 0
     
 except IndexError:
     print("Incorrect parameters")
